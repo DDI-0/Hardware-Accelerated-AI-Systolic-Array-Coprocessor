@@ -1,0 +1,77 @@
+# Quartus Project .gitignore
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# Synthesis and Fitter output
+output_files/
+*.rpt
+*.smsg
+*.summary
+*.done
+*.jdi
+*.pin
+*.qws
+*.sld
+*.sof
+*.pof
+*.rbf
+*.ttf
+*.jam
+*.jbc
+
+# Database and intermediate files
+db/
+incremental_db/
+qdb/
+dni/
+tmp-clearbox/
+*.qmsg
+*.eqn
+*.bsf
+*.dpf
+*.qmsgdb
+*.sqlite3
+
+# Compiled object files (GHDL, ModelSim, etc.)
+*.o
+*.cf
+*.obj
+*.out
+
+# Platform Designer / Qsys generated files
+# Note: You generally DO NOT want to commit the generated IP files,
+# just the .qsys file itself. The IP can be regenerated.
+ip/
+sa_avalon/
+reset_release/
+*.sopcinfo
+*.csv
+*.cmp
+*.html
+*.htm
+*.xml
+
+# Simulation
+simulation/
+*.vcd
+*.vwf
+
+# Other Quartus temp files
+*.qarlog
+*.bak
+*.orig
+*.rej
+*~

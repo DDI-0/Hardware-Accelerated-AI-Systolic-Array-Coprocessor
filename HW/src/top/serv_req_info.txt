@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<internal_error>
+	<sub_system>ERR</sub_system>
+	<callstack>	0x7fff817b1880: dni_orch + 0x11880 (?is_vds_enabled@ORCH_UTIL@@YA_NXZ + 0x3330)
+	0x7ff81c3abc74: ucrtbase + 0x4bc74 (bsearch_s + 0x254)
+	0x7ff81c3ab896: ucrtbase + 0x4b896 (_execute_onexit_table + 0x86)
+	0x7ff81c3ab84c: ucrtbase + 0x4b84c (_execute_onexit_table + 0x3c)
+	0x7fff817af5b0: dni_orch + 0xf5b0 (?is_vds_enabled@ORCH_UTIL@@YA_NXZ + 0x1060)
+	0x7fff817ae69d: dni_orch + 0xe69d (?is_vds_enabled@ORCH_UTIL@@YA_NXZ + 0x14d)
+	0x7fff817ae97d: dni_orch + 0xe97d (?is_vds_enabled@ORCH_UTIL@@YA_NXZ + 0x42d)
+	0x7ff81f4ff739: ntdll + 0x15f739 (RtlEncodeRemotePointer + 0x89)
+	0x7ff81f3abc32: ntdll + 0xbc32 (RtlRaiseException + 0x14f2)
+	0x7ff81f437997: ntdll + 0x97997 (LdrGetProcedureAddressForCaller + 0xe77)
+	0x7ff81f4366ed: ntdll + 0x966ed (LdrGetProcedureAddress + 0x6ad)
+	0x7ff81f436891: ntdll + 0x96891 (LdrGetProcedureAddress + 0x851)
+	0x7ff81f436891: ntdll + 0x96891 (LdrGetProcedureAddress + 0x851)
+	0x7ff81f436891: ntdll + 0x96891 (LdrGetProcedureAddress + 0x851)
+	0x7ff81f436891: ntdll + 0x96891 (LdrGetProcedureAddress + 0x851)
+	0x7ff81f436891: ntdll + 0x96891 (LdrGetProcedureAddress + 0x851)
+	0x7ff81f436533: ntdll + 0x96533 (LdrGetProcedureAddress + 0x4f3)
+	0x7ff81f3b47af: ntdll + 0x147af (LdrUnloadDll + 0x1ef)
+	0x7ff81bfa0678: KERNELBASE + 0x40678 (FreeLibrary + 0x18)
+	0x7ff8003d1fc8: mega_qsysipc_jni_stub + 0x1fc8 (Java_com_altera_qsys_ipc_QsysIPCNativeInterface_nativeShutDownJNIModule + 0x6c8)
+	0x7ff8003d1908: mega_qsysipc_jni_stub + 0x1908 (Java_com_altera_qsys_ipc_QsysIPCNativeInterface_nativeShutDownJNIModule + 0x8)
+	0x20a1abed6e0:
+	0x20a7b71f3b7:
+	0x20a7d5c384f:
+	0x209ffffffff:
+	0x20a1abe951f:
+	0x61022ccff:
+	0x20a1abed3b5:
+	0x4e403ff17f:
+	0x20a7b71f3b7:
+	0x4e403ff1e7:
+	0x20a7b723a9f:
+</callstack>
+	<error>*** Fatal Error: Access Violation at 00007FFF817B1881</error>
+	<date>Tue Aug 18 17:02:20 2026
+</date>
+	<version>Version 25.3.0 Build 109 09/24/2025 SC Pro Edition</version>
+</internal_error>
