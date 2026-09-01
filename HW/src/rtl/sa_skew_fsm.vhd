@@ -1,8 +1,4 @@
--- Skew FSM: sa_skew_fsm
---
 -- Central controller that orchestrates one matrix multiplication:
---
---   IDLE → LOAD_A → LOAD_B → RESET_PE → COMPUTE → FLUSH → CAPTURE → DONE
 --
 -- LOAD_A/B:  Reads 4+4 packed words from the input FIFO into local regs
 -- RESET_PE:  Asserts array rst_n for 2 cycles to clear accumulators
@@ -77,7 +73,7 @@ begin
     perf_cycles <= std_logic_vector(cycle_cnt);
     txn_count   <= std_logic_vector(txn_cnt_r);
     err_count   <= std_logic_vector(err_cnt_r);
-    err_overflow <= '0';  -- no overflow in current design
+    err_overflow <= '0'; 
 
     -- Main FSM
     process (clk)
@@ -96,14 +92,12 @@ begin
                 sa_compute_en <= '0';
                 sa_a_in       <= (others => '0');
                 sa_b_in       <= (others => '0');
-                fifo_rd_en    <= '0';
-                capture_start <= '0';
+capture_start <= '0';
                 busy          <= '0';
                 done_pulse    <= '0';
             else
                 -- Defaults
-                fifo_rd_en    <= '0';
-                capture_start <= '0';
+capture_start <= '0';
                 done_pulse    <= '0';
 
                 case state is
@@ -128,8 +122,7 @@ begin
                         cycle_cnt <= cycle_cnt + 1;
                         if fifo_rd_empty = '0' then
                             a_regs(to_integer(load_cnt)) <= fifo_rd_data;
-                            fifo_rd_en <= '1';
-                            if load_cnt = 3 then
+if load_cnt = 3 then
                                 load_cnt <= (others => '0');
                                 state    <= S_LOAD_B;
                             else
@@ -142,8 +135,7 @@ begin
                         cycle_cnt <= cycle_cnt + 1;
                         if fifo_rd_empty = '0' then
                             b_regs(to_integer(load_cnt)) <= fifo_rd_data;
-                            fifo_rd_en <= '1';
-                            if load_cnt = 3 then
+if load_cnt = 3 then
                                 load_cnt <= (others => '0');
                                 rst_cnt  <= (others => '0');
                                 state    <= S_RESET_PE;
@@ -203,18 +195,21 @@ begin
                         end if;
 
                     -- FLUSH: zero inputs, keep compute_en high (N+1 cycles)
+                    --        followed by 1 settling cycle before capture
                     when S_FLUSH =>
-                        cycle_cnt     <= cycle_cnt + 1;
-                        sa_compute_en <= '1';
-                        sa_a_in       <= (others => '0');
-                        sa_b_in       <= (others => '0');
+                        cycle_cnt <= cycle_cnt + 1;
+                        sa_a_in   <= (others => '0');
+                        sa_b_in   <= (others => '0');
 
-                        if t_cnt = to_unsigned(SA_FLUSH_CYCLES - 1, 4) then
+                        if t_cnt < to_unsigned(SA_FLUSH_CYCLES - 1, 4) then
+                            sa_compute_en <= '1';
+                            t_cnt         <= t_cnt + 1;
+                        elsif t_cnt = to_unsigned(SA_FLUSH_CYCLES - 1, 4) then
                             sa_compute_en <= '0';
+                            t_cnt         <= t_cnt + 1;
+                        else
                             capture_start <= '1';
                             state         <= S_CAPTURE;
-                        else
-                            t_cnt <= t_cnt + 1;
                         end if;
 
                     -- CAPTURE: wait for result capture to push all words
@@ -243,4 +238,11 @@ begin
         end if;
     end process;
 
+    -- Combinational FIFO read enable
+    fifo_rd_en <= '1' when (state = S_LOAD_A or state = S_LOAD_B) and (fifo_rd_empty = '0') else '0';
+
 end architecture rtl;
+
+
+
+
