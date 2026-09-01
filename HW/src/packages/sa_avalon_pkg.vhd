@@ -20,7 +20,7 @@ package sa_avalon_pkg is
     constant SA_WORDS_PER_TXN   : natural := 2 * SA_N;              -- 8 words (A+B)
     constant SA_RESULT_WORDS    : natural := SA_N * SA_N;            -- 16 words
     constant SA_FEED_CYCLES     : natural := 2 * SA_N - 1;          -- 7
-    constant SA_FLUSH_CYCLES    : natural := SA_N + 1;              -- 5
+    constant SA_FLUSH_CYCLES    : natural := 7; -- Increased to let PE(N-1,N-1) finish its last MAC            -- 5
 
     -- Register word addresses (byte offset / 4)
     constant REG_CTRL        : natural := 0;   -- 0x00  W     Control
@@ -74,3 +74,5 @@ package sa_avalon_pkg is
     );
 
 end package sa_avalon_pkg;
+
+
