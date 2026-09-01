@@ -64,12 +64,10 @@ begin
             if rst_n = '0' then
                 state        <= CAP_IDLE;
                 word_idx     <= (others => '0');
-                wr_valid     <= '0';
-                capture_done <= '0';
+capture_done <= '0';
             else
                 -- Defaults
-                wr_valid     <= '0';
-                capture_done <= '0';
+capture_done <= '0';
 
                 case state is
 
@@ -81,8 +79,7 @@ begin
                         end if;
 
                     when CAP_PUSH =>
-                        wr_valid <= '1';
-                        if wr_ready = '1' then
+if wr_ready = '1' then
                             if word_idx = to_unsigned(SA_RESULT_WORDS - 1, 4) then
                                 state <= CAP_DONE;
                             else
@@ -100,4 +97,10 @@ begin
         end if;
     end process;
 
+    -- Combinational write valid
+    wr_valid <= '1' when state = CAP_PUSH else '0';
+
 end architecture rtl;
+
+
+
