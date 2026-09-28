@@ -1,50 +1,71 @@
-# Hardware-Accelerated AI Systolic Array Coprocessor
+# Hardware-Accelerated 4x4 Systolic Array Coprocessor
 
-## Project Overview
-This project implements a parameterizable $N \times N$ Systolic Array accelerator in VHDL, designed specifically for high-throughput matrix multiplication workloads common in quantized (INT8/UINT8) neural network inference. 
+Hardware-accelerated 2D Systolic Array matrix multiplier coprocessor in VHDL, integrated into an Intel Agilex 5 FPGA SoC via Avalon-MM and Avalon-ST interconnects.
 
-The core IP is integrated into an **Intel Agilex 5 SoC** using Intel Platform Designer (Qsys). It utilizes Avalon-MM (Memory-Mapped) for Control and Status Registers (CSRs) and Avalon-ST (Streaming) pipelines to interface with Modular Scatter-Gather DMAs (mSGDMA) for high-bandwidth data ingestion and result extraction.
+---
 
-This hardware/software co-design was brought up and verified directly on the **Terasic DE25-Standard** development board.
+## Overview
 
-## Architecture & Features
+* **Architecture:** Fixed $4 \times 4$ 2D Systolic Array (16 Multiply-Accumulate Processing Elements).
+* **Target Silicon:** Intel Agilex 5 FPGA SoC (`A5ED013BB32AE4SCS`).
+* **Status:** Verified on physical hardware (50 MHz).
 
-### 1. Compute Core (Parameterized $N \times N$ Array)
-The computational heart of the system is the `systolic_array` core. It is fully parameterized (`generic N`) and highly scalable. For this specific SoC implementation, it is instantiated as a $4 \times 4$ array to perfectly match the 32-bit streaming DMA bus (capable of feeding exactly four 8-bit operands per clock cycle).
-*   **AI Tensor Blocks:** The INT8 MAC (Multiply-Accumulate) operations are designed to map directly to the Agilex 5 DSP elements (AI Tensor Blocks), maximizing $F_{MAX}$ and minimizing logic utilization.
-*   **Synopsys Design Constraints (SDC):** The datapath is heavily pipelined and constrained via SDC files to achieve strict timing closure.
+---
 
-### 2. Control & Data Flow (Mealy FSM)
-Systolic Arrays require precise, clock-cycle-accurate diagonal data skewing to function correctly. This project eschews a software-managed data flow in favor of a **Custom Hardware Mealy FSM**. 
-*   **Autonomous Pipelining:** The FSM handles diagonal data skewing automatically, relieving the CPU of cycle-by-cycle management.
-*   **Result Serialization:** Captures the massive 512-bit parallel result vector (16 MAC accumulators $\times$ 32-bits) and serializes it out to the downstream Avalon-ST FIFOs.
+## Specifications
 
-### 3. System-on-Chip (SoC) Integration
-*   **Platform Designer:** The IP is packaged and integrated via standard AMBA-style Avalon interconnects.
-*   **Avalon-MM:** Provides a memory-mapped CSR interface for the CPU to assert start pulses, monitor busy/done flags, and check FIFO levels.
-*   **Avalon-ST:** Dual streaming interfaces connect directly to mSGDMAs, allowing the CPU to point the DMAs at physical memory addresses and let the hardware handle the movement.
+| Parameter | Specification | Notes |
+|---|---|---|
+| **Matrix Size** | $4 \times 4$ (fixed) | Computes $C = A \times B$ |
+| **Input Data** | Signed 8-bit (`INT8`) | Range: $-128$ to $+127$ |
+| **Accumulator** | Signed 32-bit (`INT32`) | No overflow |
+| **Clock** | 50.0 MHz (`PIN_D8`) | Single synchronous domain |
+| **Latency** | ~18 clock cycles | ~360 ns compute phase |
+| **Throughput** | 16 MACs / cycle | Peak 800 MMACs/sec @ 50 MHz |
+| **Input Interface** | Avalon-ST Sink (32-bit) | Fed by `msgdma_0` (32 bytes total) |
+| **Output Interface** | Avalon-ST Source (32-bit) | Drained by `msgdma_1` (64 bytes total) |
+| **Control** | Avalon-MM Slave (32-bit) | CSR base: `0x00001000` |
 
-## Toolchain
-*   **Hardware Description:** VHDL-2008
-*   **Synthesis & Implementation:** Intel Quartus Prime Pro
-*   **SoC Integration:** Platform Designer (Qsys)
-*   **On-Chip Verification:** System Console, TCL, JTAG Master
+---
 
-## Verification & Bring-Up
-Silicon bring-up was executed entirely over a JTAG bridge using **System Console**. TCL scripts were developed to:
-1. Act as the Avalon-MM Master to configure the IP's CSRs.
-2. Load Matrix A and Matrix B into SDRAM.
-3. Configure and arm the Scatter-Gather DMAs.
-4. Read the resultant Matrix C from memory and mathematically verify it against a golden reference model.
+## Architecture
 
-## Known Errata & Debugging Notes
-During on-silicon verification, two critical integration hurdles were encountered and documented:
+* **`systolic_pe.vhd`:** Pipelined MAC cell ($C \leftarrow C + A \times B$) passing operands eastward and southward each clock.
+* **`sa_skew_fsm.vhd`:** Mealy/Moore controller handling 7-cycle input skewing, 7-cycle flush, settling, and atomic capture.
+* **`sa_fifo.vhd`:** Synchronous FWFT buffer with 0-cycle combinational read latency.
+* **`sa_result_capture.vhd`:** Latches 512-bit parallel result bus and serializes into sixteen 32-bit words.
+* **`sa_csr.vhd`:** Avalon-MM registers (`0x00` CTRL, `0x04` STATUS, `0x08` CONFIG).
+* **`system_top.vhd`:** Board top-level mapping clock, reset push-button, and status LEDs.
 
-### 1. JTAG / System Console Endianness
-The System Console `master_write_32` commands byte-swap data under the hood when writing to the Avalon fabric. To counter this, the verification TCL scripts pack input matrix vectors using explicit Big-Endian formatting, and a `swap_endian_32` helper function is used to un-swap the 32-bit results for mathematical verification.
+---
 
-### 2. Synchronous FIFO 1-Cycle Read Latency (M20K Block RAM)
-When the `sa_fifo` component was mapped to physical Agilex M20K Block RAMs, the Fitter successfully inferred the memory but introduced an unavoidable 1-cycle synchronous read latency. 
+## Notes
 
-Because the Mealy FSM was originally designed assuming a combinational FWFT (First-Word Fall-Through) FIFO, this 1-cycle latency misaligned the data ingestion. The result was a mathematically correct MAC calculation, but with a spatial row-shift anomaly (outputting `220, 230, 240, 210` instead of the expected `210, 220, 230, 240`). 
+* **Post-Programming Reset:** Must press `KEY[0]` (`PIN_BW59`) after programming over JTAG to clear configuration glitches and sync Avalon/DMA engines.
+* **JTAG Endianness:** System Console JTAG master writes in Big-Endian byte-lane order; pack row words with Column 0 in the MSB (bits `[31:24]`).
+* **FIFO Synthesis:** `sa_fifo` must use distributed LUTs (`ramstyle = "logic"`) to avoid M20K 1-cycle synchronous read latency.
+* **Pipeline Flush:** `SA_FLUSH_CYCLES` set to 7 to allow the deepest node (`PE(3,3)`) to complete accumulation before capture.
 
+---
+
+## Verification
+
+### Running the Test
+1. Compile `systolic_array.qpf` in Quartus Prime Pro.
+2. Program `.sof` using Programmer.
+3. Press `KEY[0]` on the board.
+4. In System Console, navigate to the project directory and run:
+   ```tcl
+   source scripts/test_systolic_array.tcl
+   ```
+
+### Verified Test Case
+* **Matrix A:** $[1..16]$
+* **Matrix B:** $[17..32]$
+* **Matrix C ($A \times B$):**
+  ```text
+   250   260   270   280
+   618   644   670   696
+   986  1028  1070  1112
+  1354  1412  1470  1528
+  ```
