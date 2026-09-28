@@ -74,7 +74,7 @@ begin
     err_overflow <= '0';  -- no overflow in current design
 
     -- Main FSM
-=    process (clk)
+   process (clk)
         variable k : integer;
     begin
         if rising_edge(clk) then
