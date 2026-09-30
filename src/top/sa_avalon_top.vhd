@@ -6,8 +6,8 @@ use work.sa_avalon_pkg.all;
 entity sa_avalon_top is
     generic (
         SIGNED_ARITH    : boolean := true;   -- INT8 signed for quantized NN
-        IN_FIFO_DEPTH   : natural := 32;     -- 4 transactions (8 words each)
-        OUT_FIFO_DEPTH  : natural := 64      -- 4 transactions (16 words each)
+        IN_FIFO_DEPTH   : natural := 256;    -- 2 transactions (128 words each)
+        OUT_FIFO_DEPTH  : natural := 512     -- 2 transactions (256 words each)
     );
     port (
         clk             : in  std_logic;
@@ -54,6 +54,11 @@ architecture structural of sa_avalon_top is
     signal cfg_irq_en        : std_logic;
     signal cfg_irq_on_each   : std_logic;
     signal cfg_continuous    : std_logic;
+    signal cfg_accumulate    : std_logic;
+    signal cfg_last_tile     : std_logic;
+    signal cfg_act_m         : std_logic_vector(4 downto 0);
+    signal cfg_act_k         : std_logic_vector(4 downto 0);
+    signal cfg_act_n         : std_logic_vector(4 downto 0);
     signal sts_busy          : std_logic;
     signal sts_done          : std_logic;
     signal sts_in_fifo_ready : std_logic;
@@ -158,6 +163,11 @@ begin
             cfg_irq_en       => cfg_irq_en,
             cfg_irq_on_each  => cfg_irq_on_each,
             cfg_continuous   => cfg_continuous,
+            cfg_accumulate   => cfg_accumulate,
+            cfg_last_tile    => cfg_last_tile,
+            cfg_act_m        => cfg_act_m,
+            cfg_act_k        => cfg_act_k,
+            cfg_act_n        => cfg_act_n,
             sts_busy         => sts_busy,
             sts_done         => sts_done,
             sts_in_fifo_ready  => sts_in_fifo_ready,
@@ -202,6 +212,11 @@ begin
             start           => ctrl_start,
             soft_rst        => ctrl_soft_rst,
             continuous      => cfg_continuous,
+            cfg_accumulate  => cfg_accumulate,
+            cfg_last_tile   => cfg_last_tile,
+            cfg_act_m       => cfg_act_m,
+            cfg_act_k       => cfg_act_k,
+            cfg_act_n       => cfg_act_n,
             in_fifo_ready   => sts_in_fifo_ready,
             fifo_rd_data    => in_fifo_rd_data,
             fifo_rd_empty   => in_fifo_empty,
@@ -245,6 +260,8 @@ begin
             rst_n         => rst_n_safe,
             capture_start => capture_start,
             capture_done  => capture_done,
+            cfg_act_m     => cfg_act_m,
+            cfg_act_n     => cfg_act_n,
             result        => sa_result,
             wr_data       => cap_wr_data,
             wr_valid      => cap_wr_valid,
