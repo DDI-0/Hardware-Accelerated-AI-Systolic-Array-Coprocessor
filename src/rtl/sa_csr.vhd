@@ -41,6 +41,13 @@ entity sa_csr is
         cfg_irq_en      : out std_logic;
         cfg_irq_on_each : out std_logic;
         cfg_continuous  : out std_logic;
+        cfg_accumulate  : out std_logic;
+        cfg_last_tile   : out std_logic;
+
+        -- Runtime dimension outputs (1..16)
+        cfg_act_m       : out std_logic_vector(4 downto 0);
+        cfg_act_k       : out std_logic_vector(4 downto 0);
+        cfg_act_n       : out std_logic_vector(4 downto 0);
 
         -- Status inputs (active-high levels)
         sts_busy          : in  std_logic;
@@ -67,8 +74,8 @@ end entity sa_csr;
 
 architecture rtl of sa_csr is
 
-    -- Config register (writable bits)
-    signal config_reg    : std_logic_vector(3 downto 0) := (others => '0');
+    -- Config register (writable bits: 0=SIGNED_MODE(RO), 1=IRQ_EN, 2=IRQ_EACH, 3=CONT, 4=ACCUM, 5=LAST_TILE)
+    signal config_reg    : std_logic_vector(5 downto 0) := (others => '0');
 
     -- IRQ pending (sticky, W1C)
     signal irq_pending   : std_logic := '0';
@@ -78,6 +85,10 @@ architecture rtl of sa_csr is
     signal start_r       : std_logic := '0';
     signal soft_rst_r    : std_logic := '0';
     signal flush_out_r   : std_logic := '0';
+
+    -- Runtime dimension registers
+    signal dim_mk_reg     : std_logic_vector(31 downto 0) := (others => '0');
+    signal dim_n_reg      : std_logic_vector(31 downto 0) := (others => '0');
 
     -- Edge detection for FIFO empty→non-empty
     signal out_empty_prev : std_logic := '1';
@@ -93,6 +104,16 @@ begin
     cfg_irq_en      <= config_reg(CFG_IRQ_EN_BIT);
     cfg_irq_on_each <= config_reg(CFG_IRQ_ON_EACH_BIT);
     cfg_continuous  <= config_reg(CFG_CONTINUOUS_BIT);
+    cfg_accumulate  <= config_reg(CFG_ACCUMULATE_BIT);
+    cfg_last_tile   <= config_reg(CFG_LAST_TILE_BIT);
+
+    -- Runtime dimension outputs (clamp to SA_N if 0 or out of range)
+    cfg_act_m <= dim_mk_reg(4 downto 0) when (unsigned(dim_mk_reg(7 downto 0)) >= 1 and unsigned(dim_mk_reg(7 downto 0)) <= SA_N)
+                 else std_logic_vector(to_unsigned(SA_N, 5));
+    cfg_act_k <= dim_mk_reg(12 downto 8) when (unsigned(dim_mk_reg(15 downto 8)) >= 1 and unsigned(dim_mk_reg(15 downto 8)) <= SA_N)
+                 else std_logic_vector(to_unsigned(SA_N, 5));
+    cfg_act_n <= dim_n_reg(4 downto 0) when (unsigned(dim_n_reg(7 downto 0)) >= 1 and unsigned(dim_n_reg(7 downto 0)) <= SA_N)
+                 else std_logic_vector(to_unsigned(SA_N, 5));
 
     -- IRQ output
     irq <= irq_pending and config_reg(CFG_IRQ_EN_BIT);
@@ -103,6 +124,11 @@ begin
         if rising_edge(clk) then
             if rst_n = '0' then
                 config_reg     <= (others => '0');
+                dim_mk_reg(7 downto 0)   <= std_logic_vector(to_unsigned(SA_N, 8));
+                dim_mk_reg(15 downto 8)  <= std_logic_vector(to_unsigned(SA_N, 8));
+                dim_mk_reg(31 downto 16) <= (others => '0');
+                dim_n_reg(7 downto 0)    <= std_logic_vector(to_unsigned(SA_N, 8));
+                dim_n_reg(31 downto 8)   <= (others => '0');
                 irq_pending    <= '0';
                 err_ovf_sticky <= '0';
                 start_r        <= '0';
@@ -157,6 +183,14 @@ begin
                             config_reg(CFG_IRQ_EN_BIT)      <= avs_writedata(CFG_IRQ_EN_BIT);
                             config_reg(CFG_IRQ_ON_EACH_BIT) <= avs_writedata(CFG_IRQ_ON_EACH_BIT);
                             config_reg(CFG_CONTINUOUS_BIT)   <= avs_writedata(CFG_CONTINUOUS_BIT);
+                            config_reg(CFG_ACCUMULATE_BIT)  <= avs_writedata(CFG_ACCUMULATE_BIT);
+                            config_reg(CFG_LAST_TILE_BIT)   <= avs_writedata(CFG_LAST_TILE_BIT);
+
+                        when REG_DIM_MK =>
+                            dim_mk_reg <= avs_writedata;
+
+                        when REG_DIM_N =>
+                            dim_n_reg <= avs_writedata;
 
                         when others =>
                             null;
@@ -202,6 +236,8 @@ begin
                         config_word(CFG_IRQ_EN_BIT)      := config_reg(CFG_IRQ_EN_BIT);
                         config_word(CFG_IRQ_ON_EACH_BIT) := config_reg(CFG_IRQ_ON_EACH_BIT);
                         config_word(CFG_CONTINUOUS_BIT)   := config_reg(CFG_CONTINUOUS_BIT);
+                        config_word(CFG_ACCUMULATE_BIT)  := config_reg(CFG_ACCUMULATE_BIT);
+                        config_word(CFG_LAST_TILE_BIT)   := config_reg(CFG_LAST_TILE_BIT);
                         avs_readdata <= config_word;
 
                     when REG_PERF_CYCLES =>
@@ -237,6 +273,12 @@ begin
                             cap_word(24) := '1';
                         end if;
                         avs_readdata <= cap_word;
+
+                    when REG_DIM_MK =>
+                        avs_readdata <= dim_mk_reg;
+
+                    when REG_DIM_N =>
+                        avs_readdata <= dim_n_reg;
 
                     when others =>
                         avs_readdata <= (others => '0');
