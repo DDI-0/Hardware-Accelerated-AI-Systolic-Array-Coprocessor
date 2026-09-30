@@ -7,18 +7,18 @@ use ieee.std_logic_1164.all;
 package sa_avalon_pkg is
 
     -- Array parameters
-    constant SA_N          : natural := 4;
+    constant SA_N          : natural := 16;
     constant SA_DATA_WIDTH : natural := 8;
     constant SA_ACC_WIDTH  : natural := 32;
 
     -- Derived
-    constant SA_A_IN_WIDTH      : natural := SA_N * SA_DATA_WIDTH;   -- 32
-    constant SA_RESULT_WIDTH    : natural := SA_N * SA_N * SA_ACC_WIDTH; -- 512
-    constant SA_WORDS_PER_MAT   : natural := SA_N;                   -- 4 words/matrix
-    constant SA_WORDS_PER_TXN   : natural := 2 * SA_N;              -- 8 words (A+B)
-    constant SA_RESULT_WORDS    : natural := SA_N * SA_N;            -- 16 words
-    constant SA_FEED_CYCLES     : natural := 2 * SA_N - 1;          -- 7
-    constant SA_FLUSH_CYCLES    : natural := 7;         -- 5
+    constant SA_A_IN_WIDTH      : natural := SA_N * SA_DATA_WIDTH;                   -- 128
+    constant SA_RESULT_WIDTH    : natural := SA_N * SA_N * SA_ACC_WIDTH;             -- 8192
+    constant SA_WORDS_PER_MAT   : natural := (SA_N * SA_N * SA_DATA_WIDTH) / 32;     -- 64 words/matrix
+    constant SA_WORDS_PER_TXN   : natural := 2 * SA_WORDS_PER_MAT;                   -- 128 words (A+B)
+    constant SA_RESULT_WORDS    : natural := SA_N * SA_N;                            -- 256 words
+    constant SA_FEED_CYCLES     : natural := 2 * SA_N - 1;                          -- 31
+    constant SA_FLUSH_CYCLES    : natural := 31;                                     -- 31 cycles (pipeline drain)
 
     -- Register word addresses (byte offset / 4)
     constant REG_CTRL        : natural := 0;   -- 0x00  W     Control
@@ -31,8 +31,10 @@ package sa_avalon_pkg is
     -- 7 reserved (0x1C)
     constant REG_VERSION     : natural := 8;   -- 0x20  R     Version
     constant REG_CAPABILITY  : natural := 9;   -- 0x24  R     Array params
+    constant REG_DIM_MK      : natural := 10;  -- 0x28  RW    Runtime M/K dimensions
+    constant REG_DIM_N       : natural := 11;  -- 0x2C  RW    Runtime N dimension
 
-    constant CSR_ADDR_WIDTH  : natural := 4;   -- 0..9 = 4 bits
+    constant CSR_ADDR_WIDTH  : natural := 5;   -- 0..11 fits in 5 bits
 
     -- CTRL bit positions (0x00, write-only, self-clearing pulses)
     constant CTRL_START_BIT      : natural := 0;
@@ -53,6 +55,8 @@ package sa_avalon_pkg is
     constant CFG_IRQ_EN_BIT      : natural := 1;
     constant CFG_IRQ_ON_EACH_BIT : natural := 2;
     constant CFG_CONTINUOUS_BIT  : natural := 3;
+    constant CFG_ACCUMULATE_BIT  : natural := 4;   -- Retain PE accumulators between tiles
+    constant CFG_LAST_TILE_BIT   : natural := 5;   -- Final tile in accumulation chain: trigger capture
 
     -- IP version
     constant IP_VER_MAJOR : natural := 1;
