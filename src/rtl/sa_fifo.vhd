@@ -77,7 +77,7 @@ begin
     rd_data   <= mem(rd_ptr);
     rd_empty  <= '1' when count = 0 else '0';
     wr_full   <= '1' when count = DEPTH else '0';
-    level     <= std_logic_vector(to_unsigned(count, 8));
-    depth_out <= std_logic_vector(to_unsigned(DEPTH, 8));
+    level     <= std_logic_vector(to_unsigned(count, 8)) when count < 256 else x"FF";
+    depth_out <= std_logic_vector(to_unsigned(DEPTH, 8)) when DEPTH < 256 else x"FF";
 
 end architecture rtl;
