@@ -28,6 +28,10 @@ architecture behavior of systolic_pe is
     signal a_reg   : std_logic_vector(DATA_WIDTH-1 downto 0);
     signal b_reg   : std_logic_vector(DATA_WIDTH-1 downto 0);
     signal acc_reg : std_logic_vector(ACC_WIDTH-1 downto 0);
+
+    -- Force multiplier synthesis into ALM logic to preserve physical DSP blocks
+    attribute multstyle : string;
+    attribute multstyle of behavior : architecture is "logic";
 begin
 
     MAC_function: process(clk)
