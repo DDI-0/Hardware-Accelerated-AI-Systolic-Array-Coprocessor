@@ -6,7 +6,7 @@ use ieee.numeric_std.all;
 
 entity systolic_array is
     generic (
-        N            : integer := 4;
+        N            : integer := 16;
         DATA_WIDTH   : integer := 8;
         ACC_WIDTH    : integer := 32;
         SIGNED_ARITH : boolean := false
