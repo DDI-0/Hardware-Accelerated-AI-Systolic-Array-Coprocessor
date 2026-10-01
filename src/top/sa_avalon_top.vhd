@@ -37,15 +37,7 @@ end entity sa_avalon_top;
 
 architecture structural of sa_avalon_top is
 
-  
-    component reset_release is
-        port (
-            ninit_done : out std_logic
-        );
-    end component reset_release;
-
-    signal ninit_done  : std_logic;
-    signal rst_n_safe  : std_logic;  -- gated: device ready AND external reset released
+    signal rst_n_safe  : std_logic;  -- System reset driven from Platform Designer fabric reset
 
     -- CSR ↔ FSM control/status signals
     signal ctrl_start        : std_logic;
@@ -109,14 +101,8 @@ architecture structural of sa_avalon_top is
 
 begin
 
-    
-    u_reset_release : reset_release
-        port map (
-            ninit_done => ninit_done
-        );
-
-    -- Combine: device-ready AND external reset
-    rst_n_safe <= rst_n and (not ninit_done);
+    -- Reset driven directly by system reset (reset release handled at top-level)
+    rst_n_safe <= rst_n;
 
     -- Avalon-ST sink → Input FIFO glue
     asi_ready      <= not in_fifo_full;
