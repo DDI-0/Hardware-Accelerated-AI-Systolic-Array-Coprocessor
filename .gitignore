@@ -25,7 +25,6 @@ output_files/
 *.pin
 *.qws
 *.sld
-*.sof
 *.pof
 *.rbf
 *.ttf
