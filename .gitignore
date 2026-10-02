@@ -58,7 +58,6 @@ ip/
 sa_avalon/
 reset_release/
 *.sopcinfo
-*.csv
 *.cmp
 *.html
 *.htm
