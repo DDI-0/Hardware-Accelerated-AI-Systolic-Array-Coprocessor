@@ -291,10 +291,4 @@ Markdown and Word versions of the technical reports are available under `docs/`.
 
 ## Current limits and next engineering steps
 
-1. **Host overlap:** submit and buffer transfers so the RTL banking and concurrent paths can be exercised without compromising accumulation or completion ordering.
-2. **Packing and reset costs:** reduce repeated packing, per-output-tile reset delays, and diagnostic buffer initialization, then rerun the same measured campaign.
-3. **Native partial dimensions:** correct rectangular feed timing and directly test `ACT_M`, `ACT_K`, and `ACT_N` combinations before replacing the padded path.
-4. **Fault recovery:** test capture reset, FIFO backpressure, timeout recovery, and stalled traffic. Successful normal execution does not establish those behaviors.
-5. **Comparison quality:** benchmark an optimized CPU implementation and a specifically sourced INT8 model-layer shape. Current results cover synthetic GEMM and a scalar reference, not model inference accuracy or production latency.
-
 The project demonstrates RTL design, FPGA resource tradeoffs, Avalon/DMA integration, Linux hardware control, staged fault isolation, numerical verification, and performance analysis. The remaining optimization target is complete application throughput, with measured evidence separating array capability from host and data-movement overhead.
