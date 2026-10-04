@@ -2,7 +2,7 @@
 
 A VHDL matrix multiplication accelerator with a Linux C++ host driver, integrated into a Terasic DE25 Standard Intel Agilex 5 FPGA SoC. The design computes **C = A × B** using **signed INT8 operands and INT32 accumulation** on a **16×16 array of 256 processing elements**.
 
-The project extends a fixed 4×4 prototype into a tiled accelerator capable of processing matrices larger than the physical array. It combines hardware accumulation, runtime dimension controls, ping-pong operand banks, Avalon interfaces, DMA, and HPS software. Board validation covers irregular matrices, signed extremes, tile boundaries, and square workloads through **1024×1024**.
+The project extends a fixed 4×4 prototype into a tiled accelerator capable of processing matrices larger than the physical array. It combines hardware accumulation, runtime dimension controls, ping-pong operand banks, Avalon interfaces, DMA, and HPS software. Board validation covers irregular matrices, signed extremes, tile boundaries, square workloads through **1024×1024**, and a **real pretrained DistilBERT attention query projection**.
 
 ## Project at a glance
 
@@ -16,13 +16,15 @@ The project extends a fixed 4×4 prototype into a tiled accelerator capable of p
 | Interfaces | Avalon-MM control registers and 32-bit Avalon-ST data paths |
 | Data movement | Input/output MSGDMA engines and reserved HPS DDR |
 | Arithmetic mapping | ALM-based multiplication; zero DSP blocks in the 16×16 fitter summaries |
-| Correctness campaign | **112 test points, 3,360 measured runs, 336 warmups, zero mismatches** |
+| Synthetic correctness campaign | **112 test points, 3,360 measured runs, 336 warmups, zero mismatches** |
+| Pretrained model-layer campaign | **5 shapes, 150 measured runs, 15 warmups, and 1 smoke test; zero integer mismatches** |
+| Model layer | DistilBERT first attention query projection; M=1,16,64,128,512 with K=N=768 |
 | Largest verified square workload | M = K = N = 1024, signed random inputs |
 | 1024³ median FPGA driver wall time | **15.254 seconds** |
 | 1024³ useful wall throughput | **0.1408 GOPS** |
 | Execution schedule measured | Sequential HPS tile submission; full RTL overlap benefit is not measured |
 
-**Main result:** tiled signed GEMM is correct across the tested shapes and sizes. Useful wall throughput increases with square size and approaches a plateau through 1024. Completion waits and packing dominate application latency. The current FPGA driver remains slower than the scalar CPU reference in the measured large sweep; no speedup over an optimized CPU library is claimed.
+**Main result:** tiled signed GEMM is correct across the tested synthetic shapes and the pretrained model-layer workloads. Useful wall throughput increases with square size and approaches a plateau through 1024. Completion waits and packing dominate driver latency. The current FPGA driver remains slower than the scalar CPU reference in the measured large sweep and all five model-layer shapes; no speedup over an optimized CPU library is claimed.
 
 ## Design evolution and engineering decisions
 
@@ -106,8 +108,9 @@ For one full K tile step:
 | [`test/gemm_test.cpp`](test/gemm_test.cpp) | Linux MMIO/DMA driver, staged diagnostics, tiled GEMM |
 | [`test/gemm_suite.hpp`](test/gemm_suite.hpp) | Seeded test plans, verification, statistics, CSV export |
 | [`test/gemm_metrics.hpp`](test/gemm_metrics.hpp) | Driver timing and tile-count instrumentation |
+| [`hugging_model_test_distil_result/run_model_layer.sh`](hugging_model_test_distil_result/run_model_layer.sh) | Five-shape model-layer campaign script used with the prepared executable |
 
-## Measured validation and performance
+## Synthetic GEMM validation and performance
 
 Every test point uses **3 verified warmups and 30 verified measured runs**. Inputs and expected results are prepared outside the FPGA timing interval. Every FPGA output element is checked against a scalar CPU matrix multiplication; logging and CSV writes are also excluded from that interval.
 
@@ -133,7 +136,7 @@ All rows below use the large suite, busy polling, and 100% geometric padding eff
 | 768 | 110,592 | 6.5926 | 6.5930 | 6.5932 | 0.1374 |
 | 1024 | 262,144 | 15.2542 | 15.2580 | 15.2646 | 0.1408 |
 
-![Square scaling latency and useful throughput](docs/gemm_test_report_assets/square_scaling.png)
+Scaling plots are included in the [Validation and Performance Analysis](docs/Systolic_Array_Validation_and_Performance_Analysis.pdf).
 
 **Interpretation:** throughput increases through 1024, with diminishing gains. There is no observed throughput collapse in this range. Larger K amortizes output-tile reset and capture costs, while packing, submission, and waits continue to repeat for every tile step.
 
@@ -147,7 +150,7 @@ Tall and wide matrices have nearly identical latency within matched pairs. The a
 
 At 1024³, approximately **59.7%** of wall time is spent in completion waits, **20.0%** in packing, and **11.8%** in submission. Wait time includes accelerator execution, DMA progress, and software polling; it is not an isolated DMA latency measurement.
 
-![Measured driver timing breakdown](docs/gemm_test_report_assets/timing_breakdown.png)
+The timing breakdown plot is included in the [Validation and Performance Analysis](docs/Systolic_Array_Validation_and_Performance_Analysis.pdf).
 
 The scalar CPU reference takes **12.150 seconds** at 1024³, versus **15.254 seconds** for the FPGA driver. The current driver is therefore slower even than this reference in the large sweep. The CPU reference is not optimized BLAS or NEON, and its memory access behavior changes with size.
 
@@ -162,6 +165,34 @@ An identical 64³ workload also exhibits a test-order difference: 8.870 ms in th
 | HPS driver wall time | Packing, reset/initialization, MMIO/DMA submission, completion waits, and readback |
 | Useful wall GOPS | `2 × M × K × N / elapsed_seconds / 1e9`; padding is excluded from useful work |
 | Padding efficiency | Useful operations divided by `tile_steps × 8192`; a geometry ratio, not measured PE utilization |
+
+## Pretrained DistilBERT INT8 layer results
+
+The accelerator also executes the first attention query projection from **`distilbert/distilbert-base-uncased`**, pinned to revision `12040accade4e8a0f71eabdb258fecc2e7e948be`. The selected module is `transformer.layer.0.attention.q_lin`. Its pretrained 768×768 weights and input activations captured from real tokenized text provide a model workload beyond synthetic matrices.
+
+**What this layer does:** each token's query vector is compared with other tokens' keys to form attention scores, which weight their value vectors. This helps a transformer build contextual representations used by applications such as review sentiment classification and extractive question answering. A query is an internal learned vector, not a question entered by a person. The report cites the attention paper and official DistilBERT model cards for these explanations and application examples.
+
+**What was tested:** the FPGA performs the signed INT8 GEMM for this projection with INT32 accumulation. Activations use one symmetric scale per case; weights use one scale per output channel. Host scale conversion and pretrained bias addition support comparison with the original floating-point projection. Key/value projections, attention scores, softmax, and task-specific output heads are outside this experiment.
+
+The five cases select the first M rows from one captured 512-token sequence; M=1 selects the CLS row. They are not five independently tokenized sentences. Each shape passed **30 measured runs and 3 warmups**, and the preliminary 16-row smoke test also passed: **166 board invocations with zero integer mismatches**.
+
+| Rows M | Median FPGA driver wall time ms | p95 ms | Useful GOPS | Padding efficiency | Scalar CPU median ms |
+|---|---:|---:|---:|---:|---:|
+| 1 | 136.07 | 136.10 | 0.0087 | 6.25% | 3.07 |
+| 16 | 142.06 | 142.17 | 0.1329 | 100% | 108.68 |
+| 64 | 567.74 | 567.84 | 0.1330 | 100% | 432.71 |
+| 128 | 1,135.46 | 1,135.64 | 0.1330 | 100% | 861.85 |
+| 512 | 4,395.53 | 4,395.95 | 0.1374 | 100% | 1,547.61 |
+
+Latency, throughput, timing breakdown, and quantization plots are included in the [model-layer report](output/pdf/DistilBERT_INT8_Layer_Validation.pdf).
+
+**Scaling:** tile-aligned shapes sustain approximately 0.133–0.137 GOPS with no observed throughput collapse among the sampled shapes. M=1 and M=16 execute the same 2,304 tile steps, so the one-row case takes nearly as long despite performing 16 times fewer useful operations. Padding efficiency describes this geometric cost, not measured PE utilization.
+
+**Timing:** completion waits account for approximately **57–59%** of wall time and packing another **18–21%**. The scalar CPU reference is faster end to end for every tested shape. These results establish correct execution and measured scaling for a pretrained projection; they do not establish full-model inference performance.
+
+**Quantization:** relative L2 output error ranges from **2.37% to 2.78%**, with cosine similarity above **0.9996**, compared with the original floating-point layer output. Every integer FPGA output matches its reference exactly. The floating difference measures quantization approximation, not downstream task accuracy.
+
+The wall timer includes the complete GEMM driver call and excludes package loading, CPU reference calculation, verification, dequantization, and bias addition. The raw CSVs, summaries, manifests, and quantization results are preserved in [model-layer source data](hugging_model_test_distil_result/). See the [final model-layer report](output/pdf/DistilBERT_INT8_Layer_Validation.pdf) for maximum latency, tile counts, timing and error plots, definitions, and citations.
 
 At 1024³, the hardware counter records 16,523,264 cycles, equivalent to 165.233 ms at 100 MHz, while complete driver execution takes 15.254 seconds. **The counted interval is not application latency.** Theoretical peak, counted throughput, and wall throughput must be reported separately.
 
@@ -250,9 +281,15 @@ Both default to three warmups, 30 measured runs per point, busy polling, and no 
 
 For a short integration check, add `--runs 1 --warmup 0`; those results do not replace the 30-run measurements. Preview test plans without hardware access using `./gemm_test --suite-list --suite large`. Run a custom matrix with `--benchmark -M 64 -K 128 -N 32 --poll-us 0`.
 
-Each suite writes `_runs.csv`, `_summary.csv`, and `_manifest.txt` beside the chosen prefix. The raw file records seeds, warmups, measured samples, mismatch counts, geometry, and stage timings. The summary reports median, nearest-rank p95, maximum, and useful throughput. Existing filenames are refused, and failures stop the suite. See [`test/GEMM_SUITE.md`](test/GEMM_SUITE.md) for all options.
+Each suite writes `_runs.csv`, `_summary.csv`, and `_manifest.txt` beside the chosen prefix. The raw file records seeds, warmups, measured samples, mismatch counts, geometry, and stage timings. The summary reports median, nearest-rank p95, maximum, and useful throughput. Existing filenames are refused, and failures stop the suite. Run `./gemm_test --help` for all options.
 
 To replace the executable by moving the SD card, first run `sync` and `sudo poweroff`, wait for shutdown, and turn board power off. Copy the binary on the development computer, safely eject the card, reinstall it, reprogram the volatile image, and boot with `run sa_boot`. The SD card holds the active Linux root filesystem and cannot be removed during operation.
+
+### Model-layer campaign files
+
+The [recorded model-layer campaign](hugging_model_test_distil_result/) includes the run script and all 24 result files: four files for each of five shapes and four smoke-test files. Each shape has raw runs, a summary, a manifest, and quantization metrics.
+
+That campaign used a prepared executable with `--layer` and `--layer-check` support. The current `test/gemm_test.cpp` contains the synthetic suite; the model-loader header and exporter sources are absent from this checkout. Rebuilding the current source therefore does not reproduce the model-layer executable. The recorded measurements and final report remain available.
 
 ## Host tests and RTL simulation
 
@@ -283,12 +320,12 @@ These target the loader/compute controller and PE array respectively. Their pres
 | [Architecture and Baseline Analysis](docs/Systolic_Array_Architecture_and_Baseline_Analysis.pdf) | 4×4 baseline, cycle allocation, DSP scaling rationale, and architectural comparison |
 | [Validation and Performance Analysis](docs/Systolic_Array_Validation_and_Performance_Analysis.pdf) | Combined 112-point campaign, scaling through 1024, padding and shape effects, timing analysis |
 | [Debug and Root Cause Analysis](docs/Agilex5_Debug_RCA.pdf) | Failure isolation, confirmed causes, corrections, commands, and operational procedure |
-| [Suite instructions](test/GEMM_SUITE.md) | Build, test selection, output format, metric definitions |
-| [Recorded board results](docs/gemm_test_report_assets/source_data/) | Original and large suite manifests, raw runs, and summaries |
-| [Plots](docs/gemm_test_report_assets/) | PNG and SVG figures used in the performance report |
+| [Pretrained INT8 Layer Validation](output/pdf/DistilBERT_INT8_Layer_Validation.pdf) | DistilBERT query projection, 166 verified board invocations, latency and quantization results, application examples, and citations |
+| [Recorded synthetic results](firsttest/) | Original and large suite raw runs and summaries |
+| [Recorded model-layer results](hugging_model_test_distil_result/) | Five-shape campaign, smoke test, manifests, quantization results, and run script |
 
-Markdown and Word versions of the technical reports are available under `docs/`. The source CSVs retain unrounded values and per-run evidence.
+Word documents for the baseline, GEMM, and debug reports are available under `docs/`. The source CSVs retain unrounded values and per-run evidence. Plots and citations are included in the PDFs.
 
 ## Current limits and next engineering steps
 
-The project demonstrates RTL design, FPGA resource tradeoffs, Avalon/DMA integration, Linux hardware control, staged fault isolation, numerical verification, and performance analysis. The remaining optimization target is complete application throughput, with measured evidence separating array capability from host and data-movement overhead.
+The project demonstrates RTL design, FPGA resource tradeoffs, Avalon/DMA integration, Linux hardware control, staged fault isolation, numerical verification, and performance analysis on both synthetic and pretrained model-layer workloads. The completed campaigns establish correctness within their tested scope. Complete application throughput remains limited by host and data-movement overhead, and full-model task accuracy has not been evaluated.
