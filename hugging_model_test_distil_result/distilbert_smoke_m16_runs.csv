@@ -1,0 +1,2 @@
+case_id,group,M,K,N,pattern,seed,phase,iteration,status,mismatches,cpu_us,wall_us,hw_cycles,useful_gops,tile_steps,output_tiles,padding_efficiency_pct,reset_us,packing_us,submission_us,wait_us,readback_us,other_us
+distilbert_q_m16,layer,16,768,768,pretrained,0,measured,1,PASS,0,48668.020000,137476.447000,145248,0.137292,2304,48,100.000000,8883.172000,25238.861000,17197.641000,80706.191000,3047.041000,2403.541000

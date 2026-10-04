@@ -1,0 +1,2 @@
+M,K,N,status,rmse,max_abs_error,relative_l2_error,cosine_similarity
+128,768,768,PASS,0.024352992123,0.139514244034,0.0237390610898,0.999718370708

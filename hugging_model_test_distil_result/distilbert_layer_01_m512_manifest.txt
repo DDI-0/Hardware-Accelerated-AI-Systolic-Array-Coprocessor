@@ -1,0 +1,24 @@
+suite=layer
+build=Oct  3 2026 20:30:15
+compiler=11.2.1 20220111
+points=1
+runs=30
+warmup=3
+seed=0
+poll_us=0
+status=STARTED
+wall_timer=steady_clock around run_tiled_gemm; includes packing/reset/DMA/waits/readback
+excluded=generation, allocations, CPU reference, verification, console and CSV writes
+p95=nearest rank ceil(0.95*N), median=mean of middle pair for even N
+useful_gops=2*M*K*N/(median_wall_us*1000)
+padding_efficiency=useful_ops/(tile_steps*8192); not hardware utilization
+stage_medians_are_independent_and_need_not_sum_to_median_wall
+cycles=PE reset/compute/flush counter; assumed configured fabric clock 100 MHz
+inputs=fixed pretrained layer operands
+cpu_reference=simple scalar loop, not optimized BLAS
+layer_format=SAQLIN1
+package_crc32=614960772
+quantization=symmetric signed INT8 zero point 0; activation per tensor, weight per output channel
+layer=DistilBERT block 0 attention query projection
+bias_and_dequantization=host only, outside GEMM timer
+final_status=PASS
